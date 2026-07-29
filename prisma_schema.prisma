@@ -1,0 +1,643 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ============================================================================
+// AUTH & USERS
+// ============================================================================
+
+enum UserRole {
+  ADMIN
+  PROVIDER
+  CLIENT
+}
+
+model User {
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  emailVerified         DateTime?
+  password              String?
+  name                  String?
+  phone                 String?
+  avatar                String?
+  role                  UserRole  @default(CLIENT)
+
+  // Relations
+  provider              Provider?
+  reviews               Review[]
+  favorites             Favorite[]
+  quotes                Quote[]
+  messages              Message[]
+  notifications         Notification[]
+  reports               Report[]
+
+  // Auth sessions
+  accounts              Account[]
+  sessions              Session[]
+
+  // Metadata
+  isActive              Boolean   @default(true)
+  lastLogin             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([email])
+  @@index([role])
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  type                  String
+  provider              String
+  providerAccountId     String
+  refreshToken          String?
+  accessToken           String?
+  expiresAt             Int?
+  tokenType             String?
+  scope                 String?
+  idToken               String?
+  sessionState          String?
+
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id                    String    @id @default(cuid())
+  sessionToken          String    @unique
+  userId                String
+  expires               DateTime
+
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier            String
+  token                 String    @unique
+  expires               DateTime
+
+  @@unique([identifier, token])
+  @@index([token])
+}
+
+// ============================================================================
+// PROVIDERS (Proveedores)
+// ============================================================================
+
+enum ProviderStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum PlanType {
+  FREE
+  PREMIUM
+  PLUS
+}
+
+model Provider {
+  id                    String      @id @default(cuid())
+  userId                String      @unique
+
+  // Basic info
+  businessName          String
+  businessDescription   String?     @db.Text
+  slug                  String      @unique
+  logo                  String?
+  coverImage            String?
+  website               String?
+  whatsapp              String?
+  facebook              String?
+  instagram             String?
+  tiktok                String?
+  linkedin              String?
+
+  // Contact
+  email                 String?
+  phone                 String?
+
+  // Location
+  cityId                String
+  commune               String?
+  address               String?
+  latitude              Float?
+  longitude             Float?
+
+  // Status & Verification
+  status                ProviderStatus @default(PENDING_VERIFICATION)
+  isVerified            Boolean     @default(false)
+  verifiedAt            DateTime?
+
+  // Rating & Reviews
+  averageRating         Float       @default(0)
+  totalReviews          Int         @default(0)
+  responseRate          Float       @default(0)
+  averageResponseTime   Int?        // en minutos
+
+  // Subscription
+  plan                  PlanType    @default(FREE)
+  subscriptionId        String?
+  isPremium             Boolean     @default(false)
+  premiumUntil          DateTime?
+
+  // Statistics
+  totalViews            Int         @default(0)
+  totalFavorites        Int         @default(0)
+  totalQuotes           Int         @default(0)
+
+  // Metadata
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  // Relations
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city                  City        @relation(fields: [cityId], references: [id])
+  categories            ProviderCategory[]
+  services              Service[]
+  gallery               Gallery[]
+  videos                Video[]
+  schedule              Schedule?
+  reviews               Review[]
+  quotes                Quote[]
+  messages              Message[]
+  favorites             Favorite[]
+  awards                Award[]
+  analytics             ProviderAnalytics[]
+  advertisements        Advertisement[]
+  subscriptions         Subscription[]
+
+  @@unique([slug])
+  @@index([userId])
+  @@index([cityId])
+  @@index([status])
+  @@index([isPremium])
+  @@index([isVerified])
+}
+
+model ProviderCategory {
+  id                    String    @id @default(cuid())
+  providerId            String
+  categoryId            String
+  createdAt             DateTime  @default(now())
+
+  provider              Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  category              Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, categoryId])
+  @@index([providerId])
+  @@index([categoryId])
+}
+
+model Service {
+  id                    String    @id @default(cuid())
+  providerId            String
+  name                  String
+  description           String?   @db.Text
+  price                 Decimal?  @db.Decimal(10, 2)
+  duration              String?   // "2-4 horas", "Todo el día", etc
+  image                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  provider              Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+}
+
+model Schedule {
+  id                    String    @id @default(cuid())
+  providerId            String    @unique
+  monday                String?   // "09:00-18:00"
+  tuesday               String?
+  wednesday             String?
+  thursday              String?
+  friday                String?
+  saturday              String?
+  sunday                String?
+  holidays              String?   // JSON array de fechas
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  provider              Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+}
+
+model Gallery {
+  id                    String    @id @default(cuid())
+  providerId            String
+  title                 String?
+  image                 String
+  order                 Int       @default(0)
+  createdAt             DateTime  @default(now())
+
+  provider              Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+}
+
+model Video {
+  id                    String    @id @default(cuid())
+  providerId            String
+  title                 String?
+  url                   String    // URL de YouTube/Vimeo
+  thumbnail            String?
+  order                 Int       @default(0)
+  createdAt             DateTime  @default(now())
+
+  provider              Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+}
+
+// ============================================================================
+// CATEGORIES & LOCATIONS
+// ============================================================================
+
+model Category {
+  id                    String    @id @default(cuid())
+  name                  String    @unique
+  slug                  String    @unique
+  description           String?
+  icon                  String?   // Lucide icon name
+  image                 String?
+  color                 String?   // Hex color
+  order                 Int       @default(0)
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+
+  providers             ProviderCategory[]
+
+  @@index([isActive])
+}
+
+model City {
+  id                    String    @id @default(cuid())
+  name                  String    @unique
+  slug                  String    @unique
+  communes              String?   @db.Text // JSON array
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+
+  providers             Provider[]
+
+  @@index([isActive])
+}
+
+// ============================================================================
+// REVIEWS & RATINGS
+// ============================================================================
+
+enum ReviewStatus {
+  PENDING
+  PUBLISHED
+  FLAGGED
+  HIDDEN
+}
+
+model Review {
+  id                    String      @id @default(cuid())
+  providerId            String
+  userId                String
+
+  title                 String
+  content               String      @db.Text
+  rating                Int         // 1-5
+  status                ReviewStatus @default(PUBLISHED)
+
+  isVerifiedCustomer    Boolean     @default(false)
+  helpful               Int         @default(0)
+  notHelpful            Int         @default(0)
+
+  images                ReviewImage[]
+  providerResponse      ProviderResponse?
+
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  provider              Provider    @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, userId]) // Un usuario, una opinión por proveedor
+  @@index([providerId])
+  @@index([userId])
+  @@index([rating])
+  @@index([status])
+}
+
+model ReviewImage {
+  id                    String    @id @default(cuid())
+  reviewId              String
+  url                   String
+  order                 Int       @default(0)
+
+  review                Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
+}
+
+model ProviderResponse {
+  id                    String    @id @default(cuid())
+  reviewId              String    @unique
+  content               String    @db.Text
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  review                Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================================
+// QUOTES (Cotizaciones)
+// ============================================================================
+
+enum QuoteStatus {
+  PENDING
+  VIEWED
+  RESPONDED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+model Quote {
+  id                    String      @id @default(cuid())
+  providerId            String
+  userId                String
+
+  name                  String
+  email                 String
+  phone                 String
+
+  serviceType           String?
+  message               String?     @db.Text
+  budget                String?
+  eventDate             DateTime?
+
+  status                QuoteStatus @default(PENDING)
+  viewedAt              DateTime?
+
+  response              QuoteResponse?
+
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  provider              Provider    @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@index([userId])
+  @@index([status])
+}
+
+model QuoteResponse {
+  id                    String    @id @default(cuid())
+  quoteId               String    @unique
+  message               String    @db.Text
+  estimatedPrice        Decimal?  @db.Decimal(10, 2)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  quote                 Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================================
+// MESSAGES & NOTIFICATIONS
+// ============================================================================
+
+model Message {
+  id                    String    @id @default(cuid())
+  providerId            String
+  userId                String
+
+  senderType            String    // "PROVIDER" | "CLIENT"
+  content               String    @db.Text
+
+  isRead                Boolean   @default(false)
+  readAt                DateTime?
+
+  createdAt             DateTime  @default(now())
+
+  provider              Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model Notification {
+  id                    String    @id @default(cuid())
+  userId                String
+
+  type                  String    // "review", "message", "quote", etc
+  title                 String
+  message               String
+
+  isRead                Boolean   @default(false)
+  readAt                DateTime?
+
+  actionUrl             String?
+
+  createdAt             DateTime  @default(now())
+
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+// ============================================================================
+// FAVORITES
+// ============================================================================
+
+model Favorite {
+  id                    String    @id @default(cuid())
+  userId                String
+  providerId            String
+  listId                String?   // Para listas personalizadas
+  createdAt             DateTime  @default(now())
+
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider              Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  list                  FavoriteList? @relation(fields: [listId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, providerId, listId])
+  @@index([userId])
+  @@index([providerId])
+}
+
+model FavoriteList {
+  id                    String    @id @default(cuid())
+  userId                String
+  name                  String
+  description           String?
+  isPublic              Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+
+  favorites             Favorite[]
+
+  @@index([userId])
+}
+
+// ============================================================================
+// AWARDS & REPUTATION
+// ============================================================================
+
+enum AwardType {
+  TOP_PROVIDER
+  EXCELLENT_SERVICE
+  MOST_RECOMMENDED
+  QUICK_RESPONSE
+  MOST_VISITED
+  VERIFIED_PROVIDER
+  PREMIUM_BADGE
+}
+
+model Award {
+  id                    String    @id @default(cuid())
+  providerId            String
+  type                  AwardType
+  earnedAt              DateTime  @default(now())
+
+  provider              Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@index([type])
+}
+
+// ============================================================================
+// SUBSCRIPTIONS & BILLING
+// ============================================================================
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+  PAYMENT_FAILED
+}
+
+model Subscription {
+  id                    String              @id @default(cuid())
+  providerId            String
+  stripeSubscriptionId  String?
+
+  plan                  PlanType
+  status                SubscriptionStatus
+
+  currentPeriodStart    DateTime
+  currentPeriodEnd      DateTime
+  cancelledAt           DateTime?
+
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  provider              Provider            @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@index([stripeSubscriptionId])
+}
+
+model Payment {
+  id                    String          @id @default(cuid())
+  subscriptionId        String?
+  stripePaymentId       String
+
+  amount                Decimal         @db.Decimal(10, 2)
+  currency              String          @default("USD")
+  status                String          // "succeeded", "pending", "failed"
+
+  createdAt             DateTime        @default(now())
+
+  @@index([subscriptionId])
+  @@index([stripePaymentId])
+}
+
+// ============================================================================
+// ANALYTICS & REPORTS
+// ============================================================================
+
+model ProviderAnalytics {
+  id                    String    @id @default(cuid())
+  providerId            String
+
+  date                  DateTime  @default(now()) @db.Date
+  views                 Int       @default(0)
+  clicks                Int       @default(0)
+  favorites             Int       @default(0)
+  quotes                Int       @default(0)
+  messages              Int       @default(0)
+  reviews               Int       @default(0)
+
+  provider              Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, date])
+  @@index([providerId])
+  @@index([date])
+}
+
+model Report {
+  id                    String    @id @default(cuid())
+  reportedBy            String
+
+  type                  String    // "provider", "review"
+  targetId              String    // ID del proveedor o opinión
+  reason                String
+  description           String?   @db.Text
+
+  status                String    @default("PENDING") // "PENDING", "RESOLVED", "DISMISSED"
+  resolvedAt            DateTime?
+  resolvedBy            String?
+
+  createdAt             DateTime  @default(now())
+
+  user                  User      @relation(fields: [reportedBy], references: [id], onDelete: Cascade)
+
+  @@index([reportedBy])
+  @@index([status])
+  @@index([type])
+}
+
+// ============================================================================
+// ADVERTISEMENTS
+// ============================================================================
+
+model Advertisement {
+  id                    String    @id @default(cuid())
+  providerId            String
+
+  title                 String
+  description           String?
+  image                 String
+  url                   String?
+
+  startDate             DateTime
+  endDate               DateTime
+  isActive              Boolean   @default(true)
+
+  views                 Int       @default(0)
+  clicks                Int       @default(0)
+
+  createdAt             DateTime  @default(now())
+
+  provider              Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@index([isActive])
+}
+
+// Índices adicionales para performance
+/// @@index([userId])
+/// @@index([email])
+/// @@index([createdAt])

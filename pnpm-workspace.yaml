@@ -1,0 +1,7 @@
+{
+  "workspaces": [
+    "apps/web",
+    "packages/db",
+    "packages/ui"
+  ]
+}
