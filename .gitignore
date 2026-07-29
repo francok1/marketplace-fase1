@@ -1,2 +1,15 @@
 node_modules/
 .next/
+
+# Cache de build
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Archivos de macOS
+.DS_Store
+._*
+
+# Variables de entorno (secretos)
+.env
+.env.local
+.env*.local
